@@ -1,0 +1,29 @@
+#Samtools idxstats 
+
+samtools idxstats GSM461177/sorted.GSM461177.bam >stat1.txt
+samtools idxstats GSM461178/sorted.GSM461178.bam >stat2.txt
+samtools idxstats GSM461180/sorted.GSM461180.bam >stat3.txt
+samtools idxstats GSM461181/sorted.GSM461181.bam >stat3.txt
+
+#It reports:
+Reference sequence name (e.g., chr1, chr2, MT, etc.)
+
+Reference sequence length
+Number of mapped reads to that reference
+Number of unmapped reads to that reference
+
+#Read distribution analysis
+Purpose: Analyzes where reads fall across genomic features (e.g., exons, UTRs, intergenic regions).
+What it tells you: Whether your RNA-seq reads are enriched in exons (as expected for mRNA-seq) or if there’s contamination (e.g., high intronic or intergenic content).
+It requires bed format so we have to convert gtf format to bed format 
+gffread Drosophila_melanogaster.BDGP6.54.114.gtf --bed -o output.bed
+
+#conda install -c bioconda rseqc
+read_distribution.py -i /mnt/d/reports/GSM461177/sorted.GSM461177.bam -r /mnt/d/reports/ENSEMBL/output.bed>GSM461177.txt 
+read_distribution.py -i /mnt/d/reports/GSM461178/sorted.GSM461178.bam -r /mnt/d/reports/ENSEMBL/output.bed>GSM461178.txt 
+read_distribution.py -i /mnt/d/reports/GSM461180/sorted.GSM461180.bam -r /mnt/d/reports/ENSEMBL/output.bed>GSM461180.txt 
+read_distribution.py -i /mnt/d/reports/GSM461181/sorted.GSM461181.bam -r /mnt/d/reports/ENSEMBL/output.bed>GSM461181.txt 
+
+2. Strand Specificity Inference
+infer_experiment.py -i /mnt/d/reports/GSM461177/sorted.GSM461177.bam -r drosophila.bed
+
