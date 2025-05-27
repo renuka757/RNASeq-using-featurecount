@@ -1,0 +1,184 @@
+#Volcano plot 
+library(readxl)
+library(ggplot2)
+library(dplyr)
+library(ggrepel)
+
+data=data.frame(read_excel("results_deseq.xlsx"),row.names = 1)
+data$padj=as.numeric(data$padj)
+data=data[!is.na(data$log2FoldChange) & !is.na(data$pvalue) & !is.na(data$padj),]
+
+finaldata=data[,c(-2,-4,-5),]
+upregulated=finaldata%>%
+  filter(log2FoldChange > 1 & pvalue <= 0.05)
+downregulated=finaldata%>%
+  filter(log2FoldChange < -1 & pvalue <= 0.05)
+finaldata$significance="not significant"
+finaldata$delabel="delabel"
+
+Top10=upregulated[order(upregulated$log2FoldChange,decreasing = TRUE),][1:10,]
+Down10=downregulated[order(downregulated$log2FoldChange),][1:10,]
+Top_symbol=rownames(Top10)
+Down_symbol=rownames(Down10)
+Symbols=cbind(Top_symbol,Down_symbol)
+rownames(finaldata)
+finaldata$delabel=ifelse(rownames(finaldata)%in%Symbols,rownames(finaldata),NA)
+
+
+finaldata$significance[finaldata$log2FoldChange >1 & finaldata$pvalue <=0.05]="upregulated"
+finaldata$significance[finaldata$log2FoldChange < -1 & finaldata$pvalue <=0.05]="downregulated"
+
+x_min=floor(min(finaldata$log2FoldChange))-1
+x_max=ceiling(max(finaldata$log2FoldChange))+1
+y_max=ceiling(max(-log(finaldata$pvalue)))+1
+
+plot1=ggplot(finaldata,aes(x=log2FoldChange,y= -log10(pvalue),colour = significance,label=delabel))+
+  geom_point(size=0.5)+
+  geom_hline(yintercept = -log10(0.05),col="black",linetype="dashed")+
+  geom_vline(xintercept = c(-1,1),col="black" ,linetype="dashed")+
+  geom_text_repel(color="black",size=2,fontface="bold",
+                  point.size = 2,
+                  min.segment.length = 0.1,
+                  segment.size=0.5,
+                  max.overlaps = Inf)+
+  coord_cartesian(xlim=c(x_min,x_max),ylim=c(0,15))+
+                  theme_minimal()+
+  ggtitle("Volcano Plot pasilla gene silencing")
+png("volcano.png",width=10,height=8,units="in",res=300)+
+print(plot1)
+dev.off()
+
+lim=round(max(c(max(finaldata$log2FoldChange),abs(min(finaldata$log2FoldChange))))+1)
+plot2=ggplot(finaldata,aes(x=log2FoldChange,y= -log10(pvalue),colour = significance,label=delabel))+
+  geom_point(size=0.5)+
+  geom_hline(yintercept = -log10(0.05),col="black",linetype="dashed")+
+  geom_vline(xintercept = c(-1,1),col="black" ,linetype="dashed")+
+  geom_text_repel(color="black",size=3,fontface="bold",
+                  point.size = 2,
+                  min.segment.length = 0.1,
+                  segment.size=0.5,
+                  max.overlaps = Inf)+
+  coord_cartesian(xlim=c(-lim,lim),ylim=c(0,15))+
+  theme_minimal()+
+  ggtitle("Volcano Plot2 pasilla gene silencing")
+png("volcano2.png",width=10,height=8,units="in",res=300)+
+print(plot2)
+dev.off()
+#Heatmap 
+
+library(readxl)
+library(ComplexHeatmap)
+results=data.frame(read_excel("results_deseq.xlsx"),row.names = 1)
+results$padj=as.numeric(results$padj)
+results_filter=results[!is.na(results$log2FoldChange) & !is.na(results$pvalue) & !is.na(results$padj),]
+up=results[results$log2FoldChange >1 & results$pvalue <= 0.05,]
+up_10=up[order(up$log2FoldChange,decreasing=TRUE),][1:10,]
+down=results[results$log2FoldChange < -1 & results$pvalue <= 0.05,]
+down_10=down[order(down$log2FoldChange),][1:10,]
+Total_genes=rbind(up_10,down_10)
+  
+vst=data.frame(read_excel("vst.xlsx"),row.names=1)
+vst_filter=vst[row.names(Total_genes),]
+
+vst_filter_final=vst_filter[,-1]
+class(vst_filter_final)
+
+vst_filter_final=as.matrix(vst_filter_final)
+quantile(vst_filter_final)
+library(circlize)
+map1=Heatmap(vst_filter_final,
+       col=colorRamp2(c(7.08,7.36,7.74,8.36,12.33 ),colors=c("white","yellow","orange","red","brown")),
+                      cluster_rows = TRUE,
+                      cluster_columns = FALSE,
+                      name="Expression")
+png("heatmap.png",width=10,height=8 ,units="in",res=300)
+print(map1)
+dev.off()
+#Enrichment plot
+library(clusterProfiler)
+library(org.Hs.eg.db)
+library(readxl)
+library(dbplyr)
+results=data.frame(read_excel("results_deseq.xlsx"),row.names = 1)
+results$Symbol=rownames(results)
+DEG_up=results %>%
+  filter(log2FoldChange >1 & pvalue <= 0.05)
+DEG_down =results %>%
+  filter(log2FoldChange < -1 & pvalue <= 0.05)
+
+
+mygenes=bitr(geneID=DEG_up$fly_ID,
+             fromType = "FLYBASE",
+             toType ="ENTREZID",
+             OrgDb ="org.Dm.eg.db" )
+mygenes_kegg=bitr_kegg(geneID=mygenes$ENTREZID,
+                  fromType = "ncbi-geneid",
+                  toType ="kegg",
+                  organism ="dme" )
+universe=bitr(geneID=results$fly_ID,
+             fromType = "FLYBASE",
+             toType ="ENTREZID",
+             OrgDb ="org.Dm.eg.db" )
+universe_kegg=bitr_kegg(geneID=universe$ENTREZID,
+                       fromType = "ncbi-geneid",
+                       toType ="kegg",
+                       organism ="dme" )
+kegg_up=enrichKEGG(gene=mygenes_kegg$kegg,
+                 organism = "dme",
+                 pvalueCutoff =1 ,
+                 qvalueCutoff = 1,
+                 pAdjustMethod = "BH",
+                 keyType = "kegg",
+                 universe = universe_kegg$kegg)
+kegg_up =as.data.frame(kegg_up)
+kegg_up_final=kegg_up[order(kegg_up$pvalue),]
+kegg_up_sorted=kegg_up_final[order(kegg_up_final$qvalue),][1:10,]
+kegg_up_sorted$Regulation="Upregulated"
+################################################################################3
+mygenes=bitr(geneID=DEG_down$fly_ID,
+             fromType = "FLYBASE",
+             toType ="ENTREZID",
+             OrgDb ="org.Dm.eg.db" )
+mygenes_kegg=bitr_kegg(geneID=mygenes$ENTREZID,
+                       fromType = "ncbi-geneid",
+                       toType ="kegg",
+                       organism ="dme" )
+universe=bitr(geneID=results$fly_ID,
+              fromType = "FLYBASE",
+              toType ="ENTREZID",
+              OrgDb ="org.Dm.eg.db" )
+universe_kegg=bitr_kegg(geneID=universe$ENTREZID,
+                        fromType = "ncbi-geneid",
+                        toType ="kegg",
+                        organism ="dme" )
+kegg_down=enrichKEGG(gene=mygenes_kegg$kegg,
+                   organism = "dme",
+                   pvalueCutoff =1 ,
+                   qvalueCutoff = 1,
+                   pAdjustMethod = "BH",
+                   keyType = "kegg",
+                   universe = universe_kegg$kegg)
+kegg_down =as.data.frame(kegg_down)
+kegg_down =as.data.frame(kegg_down)
+kegg_down_final=kegg_down[order(kegg_down$pvalue),]
+kegg_down_sorted=kegg_down_final[order(kegg_down_final$qvalue),][1:10,]
+kegg_down_sorted$Regulation="Downregulated"
+
+combined_kegg=rbind(kegg_down_sorted,kegg_up_sorted)
+
+library(ggplot2)
+
+plot1=ggplot(combined_kegg,aes(x=-log10(pvalue),y=reorder(Description,pvalue),fill=Regulation))+
+  geom_bar(stat="identity")+
+  facet_wrap(~Regulation,scales="free_y",ncol=1)+
+  labs(y="Description",x="-log10(pvalue)")
+png("Enrichmentplot.png",width = 18,height = 8,units="in",res=300)
+print(plot1)
+dev.off()
+ 
+
+
+
+
+
+
