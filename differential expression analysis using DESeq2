@@ -1,0 +1,37 @@
+library(DESeq2)
+library(readxl)
+coldata=data.frame(read_excel("data.xlsx",sheet="Coldata"),row.names=1)
+countdata=data.frame(read_excel("data.xlsx",sheet="Countdata"),row.names=1)
+
+rownames(coldata) %in% colnames(countdata)
+rownames(coldata)==colnames(countdata)
+dds=DESeqDataSetFromMatrix(colData = coldata,
+                           countData = countdata,
+                           design = ~ condition)
+#keeping rows having count more than 10
+
+keep=rowSums(counts(dds))>=10
+dds=dds[keep,]
+
+#set levels
+levels(dds$condition)
+dds$condition=relevel(dds$condition,ref="untreated")
+levels(dds$condition)
+
+##################################################################################
+dds=DESeq(dds)
+vsd=vst(dds,blind=FALSE)
+plotPCA(vsd,intgroup="condition")
+mat=assay(vsd)
+write.csv(mat,"vst.csv")
+
+
+
+View(mat)
+summary(dds)
+dds$sizeFactor
+dds$condition
+
+res=results(dds)
+res=as.data.frame(res)
+write.csv(res,"results_deseq.csv")
