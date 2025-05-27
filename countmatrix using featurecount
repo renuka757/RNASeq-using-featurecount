@@ -1,0 +1,88 @@
+#Genome
+
+wget https://ftp.ensembl.org/pub/release-114/fasta/drosophila_melanogaster/dna/Drosophila_melanogaster.BDGP6.54.dna.toplevel.fa.gz
+
+2L  2R 3R 3L X Y 4 > regions.txt
+seqtk subseq Drosophila_melanogaster.BDGP6.54.dna.toplevel.fa regions.txt > 2L.fa
+
+Dataset 
+GSM461177 Paired Untreated
+GSM461178 Paired Untreated 
+GSM461180 Paired Treated
+GSM461181 Paired TReated 
+
+
+All samples  GSM461181 were sequenced in two separate runs:
+
+SRR031726
+
+SRR031727
+
+Each of these SRR entries corresponds to a technical replicate — meaning the same biological sample was split and run twice, often to:
+
+Increase read depth
+
+Spread load across sequencing lanes
+
+Ensure data reliability or completeness
+
+
+#Fetching Data from ENA
+
+wget -c ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR031/SRR031726/SRR031726_1.fastq.gz
+wget -c ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR031/SRR031726/SRR031726_2.fastq.gz
+wget -c ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR031/SRR031727/SRR031727_1.fastq.gz
+wget -c ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR031/SRR031727/SRR031727_2.fastq.gz
+
+gunzip *.fastq.gz
+
+cat SRR031726_1.fastq SRR031727_1.fastq > GSM461181_R1.fastq
+cat  SRR031726_2.fastq SRR031727_2.fastq > GSM461181_R2.fastq
+
+#GTF
+
+wget https://ftp.ensembl.org/pub/release-114/gtf/drosophila_melanogaster/Drosophila_melanogaster.BDGP6.54.114.gtf.gz
+
+#Quality Control
+fastqc  GSM461180_R1.fastq
+fastqc GSM461180_R2.fastq
+fastqc GSM461177_R1.fastq
+fastqc GSM461177_R2.fastq
+
+
+
+# Genome indexing 
+Why 
+#Speed and Efficiency:
+1.Indexing allows alignment algorithms to quickly pinpoint query sequences in the reference genome, eliminating the need for a full genome scan. 
+
+2.Improved Accuracy:
+Indexing helps in identifying the exact location of sequences within the genome, contributing to more accurate alignment results. 
+
+#TRimming 
+
+fastp -i GSM461177_R1.fastq -o trim.GSM461177_R1.fastq -I GSM461177_R2.fastq -O trim.GSM461177_R2.fastq -q 30
+fastp -i GSM461178_R1.fastq -o trim.GSM461178_R1.fastq -I GSM461178_R2.fastq -O trim.GSM461178_R2.fastq -q 30
+fastp -i GSM461181_R1.fastq -o trim.GSM461181_R1.fastq -I GSM461181_R2.fastq -O trim.GSM461181_R2.fastq -q 30
+fastp -i GSM461180_R1.fastq -o trim.GSM461180_R1.fastq -I GSM461180_R2.fastq -O trim.GSM461180_R2.fastq -q 30
+
+#Mapping reads on the reference genome 
+ 
+ hisat2-build genome.fa genome.index
+
+hisat2 -x /mnt/d/reports/ENSEMBL/genome.index -1 GSM461177/trim.GSM461177_R1.fastq  -2 GSM461177/trim.GSM461177_R2.fastq -S GSM461177/GSM461177.sam  
+hisat2 -x /mnt/d/reports/ENSEMBL/genome.index -1 GSM461180/trim.GSM461180_R1.fastq  -2 GSM461180/trim.GSM461180_R2.fastq -S GSM461180/GSM461180.sam 
+hisat2 -x /mnt/d/reports/ENSEMBL/genome.index -1 GSM461178/trim.GSM461178_R1.fastq  -2 GSM461178/trim.GSM461178_R2.fastq -S GSM461178/GSM461178.sam 
+hisat2 -x /mnt/d/reports/ENSEMBL/genome.index -1 GSM461181/trim.GSM461181_R1.fastq  -2 GSM461181/trim.GSM461181_R2.fastq -S GSM461181/GSM461181.sam 
+
+
+samtools view -u GSM461177/GSM461177.sam  | samtools sort -o GSM461177/sorted.GSM461177.bam
+samtools view -u GSM461180/GSM461180.sam  | samtools sort -o GSM461180/sorted.GSM461180.bam
+samtools view -u GSM461178/GSM461178.sam  | samtools sort -o GSM461178/sorted.GSM461178.bam
+samtools view -u GSM461181/GSM461181.sam  | samtools sort -o GSM461181/sorted.GSM461181.bam
+
+featureCounts -p --countReadPairs -s 0 -t exon -g gene_id -a /mnt/d/reports/ENSEMBL/Drosophila_melanogaster.BDGP6.54.114.gtf -o output.txt GSM461177/sorted.GSM461177.bam GSM461178/sorted.GSM461178.bam GSM461180/sorted.GSM461180.bam GSM461181/sorted.GSM461181.bam
+
+
+
+
